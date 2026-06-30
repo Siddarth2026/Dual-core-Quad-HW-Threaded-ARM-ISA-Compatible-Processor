@@ -73,18 +73,27 @@ All data-processing instructions update the NZCV flags when **Set** (bit 20) is 
 
 Branches are conditionally executed based on the 4-bit **Cond** field evaluated against the current NZCV flags (e.g. `EQ`, `NE`, `GT`, `LT`, always/never, etc.), matching the condition-code scheme of classic ARM branch instructions.
 
-## Pipeline Stages
+## Architecture
 
-The processor is organized into five stages:
+The dual-core processor consists of two quad hardware-threaded, pipelined processors that share a common data memory. A control logic block manages memory arbitration and maintains coherence, ensuring both cores have a consistent view of the shared memory.
 
-```
-IF  →  ID  →  EX  →  MEM  →  WB
-```
+### Quad-threaded 6-stage pipelined core datapath
 
-| Stage | Name              | Function                                                                 |
-|-------|-------------------|---------------------------------------------------------------------------|
-| IF    | Instruction Fetch | Fetch instruction from instruction memory using PC                       |
-| ID    | Decode            | Decode instruction, read register file, generate control signals         |
-| EX    | Execute           | ALU operations, branch target/condition resolution, NZCV flag generation |
-| MEM   | Memory            | Data memory access (loads/stores) via block RAM                          |
-| WB    | Writeback         | Write result back to register file                                       |
+The full datapath is organized around five pipeline register boundaries — **IF/ID**, **ID/EX**, **EX/MEM1**, **MEM1/MEM2**, and **MEM2/WB** — each of which latches control and data signals between adjacent stages.
+
+**IF stage:** The IF stage contains the `Thread ID` block, four `PC` blocks, and the `Instruction Memory (IMEM)`. The `Thread ID` block uses round-robin multithreading, where, once enabled, the thread ID increments from 0 to 3 before wrapping back to 0. The current `thread_id` is propagated through all pipeline stages to identify which thread is executing at each stage. Based on the `thread_id`, the corresponding PC is selected. During stalling or branching, only the PC belonging to the affected thread is updated, while the remaining threads continue execution normally. This keeps each instruction stream independent. The `PC` block is controlled by the `PC_stall`, `PC_enable`, `Branch`, and `Branch_address` inputs and outputs the current `PC (31:0)`. This value is supplied to the **Instruction Memory (IMEM)**, where `PC[10:2]` is used as the instruction address. IMEM also includes `Instruction_address`, `Instruction`, `Instruction_write`, and `wb` ports for external instruction loading. The fetched instruction, corresponding `PC` value, and `thread_id` are then latched into the **IF/ID** register.
+
+**ID stage:** The instruction from the **IF/ID** register is decoded by the `Control Unit`, which generates the required control signals. Simultaneously, the instruction's register fields are supplied to the `Register File (RF)`. There are four register files, one for each thread. Since each thread has its own register file, there is no context-switching overhead or shared register state to save or restore. The current `thread_id` selects which register file is used for register reads and write-back operations. The selected register file reads two operands, `Read data 0 (64)` and `Read data 1 (64)`, from addresses `Reg 0 addr` and `Reg 1 addr`, respectively. The immediate field is sign-extended (`Sign Extend`, 32-bit result), shifted left by 2 (`<<2`) for word alignment, and added to `PC (32)` using the `Adder (+)` to generate the `Branch address (32)` (`PC` is used instead of `PC+4` due to IMEM BRAM latency). There are four independent sets of `NZCV` flags, one for each thread. The flags for the current thread are compared against the instruction's condition field to determine whether a branch should be taken, preventing flag updates from one thread from affecting another during conditional branch evaluation. The register operands, `thread_id`, and control signals are then latched into the **ID/EX** register. Early branching is implemented by returning the `Branch address` and `Branch taken` signals to the corresponding `PC` block.
+
+**EX stage:** The operands from the **ID/EX** register pass through forwarding multiplexers, which select between the register file outputs and forwarded values provided by the `Forwarding Unit (FU)` to resolve RAW hazards. The `ALU SRC` control signal selects either the forwarded register operand or the sign-extended immediate for immediate operations and address calculations. The `ALU` performs the operation specified by `ALU OP`, producing the result and updating the `NZCV` flags for the current thread. The `FU` monitors the **EX/MEM1**, **MEM1/MEM2**, and **MEM2/WB** pipeline registers to supply forwarded data when required, avoiding unnecessary stalls. The ALU result and associated control signals are then latched into the **EX/MEM1** register, while the updated `NZCV` flags are forwarded to the **ID** stage for branch condition evaluation.
+
+
+**MEM1 stage:** This stage contains the Tag RAM and Cache RAM for the individual core. The ALU result from the **EX/MEM1** register is used as the address for the `Data Cache Memory (DMEM)` and `Tag RAM Memory (tagram)`. During the LW operation, the tag RAM checks for a cache hit by comparing the valid bit and tag bits for the corresponding address. If there is a cache hit, the DMEM data is sent to the next stage. If not, then data from main memory needs to be accessed, so it will be an intimate cache miss, triggering a main memory access and a cache miss stall. In case of SW operation, the data from the register is written to the cache memory and main memory, and the tag RAM is updated for the new tag for the address. The relevant control signals, cache hit/miss status, memory address, and data to be written to the main memory for SW are passed to the next stage with the **MEM1/MEM2** register.
+
+**MEM2 stage:**
+
+**WB stage:** The outputs of the **MEM/WB** register are supplied to a final 2:1 multiplexer, which selects between the ALU result (`0`) and the memory read data (`MemData (32)`, `1`) under control of the `Mem2Reg` signal. The selected value becomes `wb data`, which is written back to the `Register File (RF)`. The `WReg_WE` and `WReg_address` control signals are also returned to the register file in the **ID** stage to complete the write-back operation.
+
+**Hazard Detection Unit:** The `Hazard Detection Unit (HDU)` monitors pipeline dependencies to detect hazards that cannot be resolved through forwarding, such as load-use hazards. When a hazard is detected, it stalls the `PC` and **IF/ID** registers and inserts a bubble into the pipeline by preventing control signals from advancing, ensuring perfect execution order.
+
+**Forwarding Unit:** The `Forwarding Unit (FU)` detects read-after-write (RAW) data hazards by comparing the source registers in the **ID/EX** register with the destination registers in the **EX/MEM** and **MEM/WB** registers. When a dependency is found, it controls the forwarding multiplexers to route the most recent result directly to the ALU inputs, eliminating unnecessary pipeline stalls.
