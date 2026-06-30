@@ -152,7 +152,7 @@ This repository contains all the hardware modules required to implement the dual
  
 ### MEM2 — Main Memory access
  
-* Contains the input/output ports and control signals required to access the shared main memory. It handles memory read and write operations and, on a cache miss, transfers data between main memory and the data cache.
+* It contains the input/output ports and control signals required to access the shared main memory. It handles memory read and write operations and, on a cache miss, transfers data between main memory and the data cache.
 
 ### WB — Writeback
  
