@@ -145,14 +145,14 @@ This repository contains all the hardware modules required to implement the dual
  
 - **`FMP.v`** — Forwarding mux is used alongside the forwarding unit to select between register file outputs and forwarded values.
 
-  ### MEM1 — Cache Memory and Tag RAM
-  
-  * **`dmem.xco`/`dmem.v`** - Data cache memory. Used for load and store operations. In case of a cache miss, then data from main memory is written back to the cache for future quick retrieval. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
-  * **`tagram.v`/`tagram.xco`** - Tag RAM performs cache tag lookup and validation. It compares the stored tag and valid bit with the requested address to determine whether a cache hit or cache miss has occurred. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
+### MEM1 — Cache Memory and Tag RAM
+
+* **`dmem.xco`/`dmem.v`** - Data cache memory. Used for load and store operations. In case of a cache miss, then data from main memory is written back to the cache for future quick retrieval. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
+* **`tagram.v`/`tagram.xco`** - Tag RAM performs cache tag lookup and validation. It compares the stored tag and valid bit with the requested address to determine whether a cache hit or cache miss has occurred. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
  
 ### MEM2 — Main Memory access
  
-*Contains the input/output ports and control signals required to access the shared main memory. It handles memory read and write operations, and on a cache miss, transfers data between the main memory and the data cache.
+* Contains the input/output ports and control signals required to access the shared main memory. It handles memory read and write operations and, on a cache miss, transfers data between main memory and the data cache.
 
 ### WB — Writeback
  
