@@ -105,6 +105,58 @@ The top-level datapath consists of two cores, the control logic, the shared main
 
 The control logic block grants one of the cores access to the shared main memory by driving the multiplexers' select lines. By design, **Core 0** has a higher priority than **Core 1**, so during conflicts, Core 0 is granted access first. The control logic also handles cache-miss stalls, particularly when both cores request access simultaneously. In addition, it performs tag validation during cache write-back after a cache miss or when one core writes to a memory location that is already cached by the other core, maintaining cache coherence between the two cores.
 
+## Repository Modules Overview
+
+This repository contains all the hardware modules required to implement the dual-core, quad-threaded ARM ISA-compatible processor.
+
+### Quad-Threaded 6-Stage Pipelined Core Datapath
+
+#### IF — Instruction Fetch
+
+* **`threadid.v`** — Generates the current `thread_id`. The `PC_enable` signal advances the thread ID, implementing a round-robin scheduler that cycles from 0 to 3 and then back to 0.
+
+* **`program_counter.v`** — Implements the program counter (PC) for a single hardware thread. The `PC_enable` signal enables PC updates, while `PC_stall` freezes the PC during hazards detected by the HDU. When a branch is taken, the PC is updated with the `Branch_address`; otherwise, it advances to the next sequential instruction.
+
+* **`mux4to1.v`** — Four-to-one multiplexer that selects the program counter based on the current `thread_id`.
+
+
+* **`imem1.v` / `imem1.xco`** — Implements the instruction memory for a core. It stores the program instructions fetched by the PC, while the `.xco` file contains the Xilinx CORE Generator configuration for the underlying block RAM.
+
+
+### ID — Decode
+
+* **`control_unit.v`** — Decodes the instruction opcode and condition fields and generates the control signals used throughout the pipeline, including register write, memory write, `ALU_OP`, `Mem2Reg`, `ALU_SRC`, and related control signals.
+
+* **`register_file.v`** — Implements the general-purpose register file (RF). Provides two read ports for operands and one write-back port. Four instances are used, one for each hardware thread.
+
+* **`HDU.v`** — Hazard Detection Unit. Detects load-use hazards between the ID and EX stages and stalls the pipeline only when the dependent instructions belong to the same thread.
+
+* **`demux_address.v`** — Demultiplexer that routes the register read address ports to one of the four register files. The current `thread_id` of that stage is used as the select signal.
+
+* **`demux_data.v`** — Demultiplexer that routes the write address, write data, and write enable signals to one of the four register files. The `thread_id` from the write-back stage is used as the select signal.
+
+* **`mux_data.v`** — Multiplexer that selects the read data outputs from the four register files and forwards them to the pipeline. The current `thread_id` of that stage is used as the select signal.
+
+### EX — Execute
+ 
+* **`ALU.v`** — Implements the arithmetic logic unit (ALU). It performs arithmetic and logical operations specified by `ALU_OP`, generates the `NZCV` condition flags, and computes effective addresses for data memory during load and store operations.
+
+- **`FU.v`** — Forwarding unit. Resolves RAW data hazards by forwarding the EX/MEM1, MEM1/MEM2, and MEM2/WB results of the same thread back into the EX-stage operand muxes.
+ 
+- **`FMP.v`** — Forwarding mux is used alongside the forwarding unit to select between register file outputs and forwarded values.
+
+  ### MEM1 — Cache Memory and Tag RAM
+  
+  * **`dmem.xco`/`dmem.v`** - Data cache memory. Used for load and store operations. In case of a cache miss, then data from main memory is written back to the cache for future quick retrieval. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
+  * **`tagram.v`/`tagram.xco`** - Tag RAM performs cache tag lookup and validation. It compares the stored tag and valid bit with the requested address to determine whether a cache hit or cache miss has occurred. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
+ 
+### MEM2 — Main Memory access
+ 
+*Contains the input/output ports and control signals required to access the shared main memory. It handles memory read and write operations, and on a cache miss, transfers data between the main memory and the data cache.
+
+### WB — Writeback
+ 
+- Writeback is handled by the final mux inside **`pipeline_datapath.v`**, which selects between the ALU result and the load memory value before driving the register file's write port in **`register_file.v`**.
 
 
 
