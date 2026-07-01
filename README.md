@@ -158,8 +158,12 @@ This repository contains all the hardware modules required to implement the dual
  
 - Writeback is handled by the final mux inside **`pipeline_datapath.v`**, which selects between the ALU result and the load memory value before driving the register file's write port in **`register_file.v`**.
 
+### Top-Level Integration
+
+* **`pipeline_datapath.v`** — The top-level pipeline module. It instantiates and connects every stage (IF, ID, EX, MEM1, MEM2, WB), along with the HDU, FU, and pipeline registers (**IF/ID**, **ID/EX**, **EX/MEM1**, **MEM1/MEM2**, and **MEM2/WB**) to form the complete datapath. The module provides the interface to the shared main memory, including the required address, data, and control signals. It also outputs the `CacheMiss` and `MemWrite` signals used by the top-level control logic for memory arbitration, and accepts a cache miss stall signal when the other core is accessing the shared main memory.
 
 
+* **` control.v`** — Implements the top-level control logic for shared main memory access. It selects which core is granted access to the main memory by generating the select signals for the multiplexers. It also performs tag validation and notifies the cores when cache updates are required due to writes from the other core. In addition, it stalls a core when the other core occupies the shared main memory.
 
-
+* **`main_dmem.xco`/`main_dmem.v`** - Data main memory. Shared main memory for both the cores. Fetches data in case of any cache miss by any of the cores, and data is written to this memory in SW operations. The `.xco` file contains the Xilinx CORE Generator configuration for the underlying block RAM.
 
