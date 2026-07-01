@@ -123,7 +123,7 @@ This repository contains all the hardware modules required to implement the dual
 * **`imem1.v` / `imem1.xco`** — Implements the instruction memory for a core. It stores the program instructions fetched by the PC, while the `.xco` file contains the Xilinx CORE Generator configuration for the underlying block RAM.
 
 
-### ID — Decode
+#### ID — Decode
 
 * **`control_unit.v`** — Decodes the instruction opcode and condition fields and generates the control signals used throughout the pipeline, including register write, memory write, `ALU_OP`, `Mem2Reg`, `ALU_SRC`, and related control signals.
 
@@ -137,7 +137,7 @@ This repository contains all the hardware modules required to implement the dual
 
 * **`mux_data.v`** — Multiplexer that selects the read data outputs from the four register files and forwards them to the pipeline. The current `thread_id` of that stage is used as the select signal.
 
-### EX — Execute
+#### EX — Execute
  
 * **`ALU.v`** — Implements the arithmetic logic unit (ALU). It performs arithmetic and logical operations specified by `ALU_OP`, generates the `NZCV` condition flags, and computes effective addresses for data memory during load and store operations.
 
@@ -145,16 +145,16 @@ This repository contains all the hardware modules required to implement the dual
  
 - **`FMP.v`** — Forwarding mux is used alongside the forwarding unit to select between register file outputs and forwarded values.
 
-### MEM1 — Cache Memory and Tag RAM
+#### MEM1 — Cache Memory and Tag RAM
 
 * **`dmem.xco`/`dmem.v`** - Data cache memory. Used for load and store operations. In case of a cache miss, then data from main memory is written back to the cache for future quick retrieval. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
 * **`tagram.v`/`tagram.xco`** - Tag RAM performs cache tag lookup and validation. It compares the stored tag and valid bit with the requested address to determine whether a cache hit or cache miss has occurred. The `.xco` file is the Xilinx CORE Generator configuration for the underlying block RAM.
  
-### MEM2 — Main Memory access
+#### MEM2 — Main Memory access
  
 * It contains the input/output ports and control signals required to access the shared main memory. It handles memory read and write operations and, on a cache miss, transfers data between main memory and the data cache.
 
-### WB — Writeback
+#### WB — Writeback
  
 - Writeback is handled by the final mux inside **`pipeline_datapath.v`**, which selects between the ALU result and the load memory value before driving the register file's write port in **`register_file.v`**.
 
